@@ -1,3 +1,40 @@
+  <?php 
+  // Verifica se o parâmetro 'id' foi passado via GET
+if (!isset($_GET['id'])) {
+    // Se não foi passado, redireciona para a página home.php
+    header("Location: home.php");
+    exit; // Encerra o script
+}
+
+  // Obtém o valor do parâmetro 'id' e filtra
+  $id = filter_input(INPUT_GET, 'id', FILTER_DEFAULT);
+  // Prepara e executa a consulta para selecionar o contato com base no 'id'
+  $select = "SELECT * FROM tb_contatos WHERE id_contatos=:id";
+
+  try {
+    $resultado = $conect->prepare($select);
+    $resultado->bindParam(':id', $id, PDO::PARAM_INT);
+    $resultado->execute();
+
+    // Verifica se foi encontrado algum contato com o 'id' especificado
+    $contar = $resultado->rowCount();
+    if ($contar > 0) {
+        // Se encontrado, obtém os dados do contato
+        $show = $resultado->fetch(PDO::FETCH_OBJ);
+        $idCont = $show->id_contatos;
+        $nome   = $show->nome_contatos;
+        $fone   = $show->fone_contatos;
+        $email  = $show->email_contatos;
+        $foto   = $show->foto_contatos;
+    } else {
+        // Se nenhum contato foi encontrado, exibe mensagem
+        echo '<div class="alert alert-danger">Não há dados com o id informado!</div>';
+    }
+} catch (PDOException $e) {
+    // Exibe erro em caso de falha na consulta
+    echo "<strong>ERRO DE SELECT NO PDO: </strong>" . $e->getMessage();
+}
+  ?>
   <!-- Content Wrapper. Contains page content -->
   <div class="content-wrapper">
     <!-- Content Header (Page header) -->
@@ -7,7 +44,69 @@
           <div class="col-sm-6">
             <h1>Editar Contato</h1>
           </div>
+          <?php 
+          if (isset($_POST['upContato'])) {
+            $nome  = $_POST['nome'];
+            $fone  = $_POST['telefone'];
+            $email = $_POST['email'];
+
+            if (!empty($_FILES['foto']['name'])) {
+              $formatP = array("png", "jpg", "jpeg", "gif");
+              $extensao = pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION);
+
+              if (in_array($extensao, $formatP)) {
+                $pasta = "../img/cont/";
+                $temporario = $_FILES['foto']['tmp_name'];
+                $novoNome = uniqid() . ".$extensao";
+
+                // Move o arquivo temporário para a pasta de destino
+              if (move_uploaded_file($temporario, $pasta . $novoNome)) {
+                  // Se o upload foi bem-sucedido, verifica se há uma foto antiga para deletar
+                  if ($foto && file_exists($pasta . $foto)) {
+                      unlink($pasta . $foto); // Deleta a foto antiga
+                  }
+              } else {
+                  $mensagem = "Erro, não foi possível fazer o upload do arquivo!";
+              }
+          } else {
+              echo "Formato inválido"; // Se o formato do arquivo não é permitido, exibe mensagem de erro
+          }
+      } else {
+          $novoNome = $foto; 
+          // Se não foi feito upload de nova foto, mantém o nome da foto antiga
+      }
+
+      // Prepara e executa o comando SQL para atualizar os dados do contato
+      $update = "UPDATE tb_contatos SET nome_contatos=:nome, fone_contatos=:fone, email_contatos=:email, foto_contatos=:foto WHERE id_contatos=:id";
+      try {
+          $result = $conect->prepare($update);
+          $result->bindParam(':id', $id, PDO::PARAM_STR);
+          $result->bindParam(':nome', $nome, PDO::PARAM_STR);
+          $result->bindParam(':fone', $fone, PDO::PARAM_STR);
+          $result->bindParam(':email', $email, PDO::PARAM_STR);
+          $result->bindParam(':foto', $novoNome, PDO::PARAM_STR);
+          $result->execute();
+
+          // Verifica se a atualização foi bem-sucedida
+          $contar = $result->rowCount();
+          if ($contar > 0) {
+              // Se sim, exibe uma mensagem de sucesso e redireciona após 5 segundos
+              echo '<div class="container">
+                      <div class="alert alert-success alert-dismissible">
+                          <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
+                          <h5><i class="icon fas fa-check"></i> Ok !!!</h5>
+                          Os dados foram atualizados com sucesso.
+                      </div>
+                    </div>';
+              header("Refresh: 5, home.php");
+          } 
+      } catch (PDOException $e) {
+          // Em caso de erro PDO durante a atualização, exibe a mensagem de erro
+          echo "<strong>ERRO DE PDO= </strong>" . $e->getMessage();
+      }
+          }
           
+          ?>
         </div>
       </div><!-- /.container-fluid -->
     </section>
@@ -72,7 +171,18 @@
               
                
                 <h1><?php echo $nome; ?></h1>
-                <strong><?php echo $fone; ?></strong>
+                <?php
+                                      // PASSO 4: Checa se a foto cadastrada é o avatar padrão
+                  if ($show->foto_contatos == 'avatar-padrao.png') {
+                                          // Exibe a imagem salva na pasta de avatares padrões
+                    echo '<img src="../img/avatar_p/' . $show->foto_contatos . '" alt="' . $show->foto_contatos . 
+                                          '" title="' . $show->foto_contatos . '" style="width: 50px; border-radius: 100%;">';
+                    } else {
+                                          // Exibe a imagem enviada pelo usuário na pasta de contatos
+                      echo '<img src="../img/cont/' . $show->foto_contatos . '" alt="' . $show->foto_contatos . 
+                      '" title="' . $show->foto_contatos . '" style="width: 50px; border-radius: 100%;">';
+                                      }
+                                      ?>  
                 <p><?php echo $email; ?></p>
               </div>
               <!-- /.card-body -->
